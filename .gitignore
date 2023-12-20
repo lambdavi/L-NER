@@ -1,2 +1,4 @@
 .DS_Store
 __pycache__
+legal_ner/test
+legal_ner/utils/dataset_LLM.py

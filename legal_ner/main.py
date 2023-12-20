@@ -3,7 +3,8 @@ import json
 import numpy as np
 from argparse import ArgumentParser
 from nervaluate import Evaluator
-
+from span_marker import SpanMarkerModel, Trainer as SpanTrainer
+from transformers import EarlyStoppingCallback
 from transformers import AutoModelForTokenClassification
 from transformers import Trainer, DefaultDataCollator, TrainingArguments
 
@@ -43,9 +44,31 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
+        "--model_path",
+        help="The model path from huggingface/local folder",
+        default=None,
+        required=False,
+        type=str,
+    )
+    parser.add_argument(
+        "--scheduler",
+        help="Scheduler type among: linear, polynomial, reduce_lr_on_plateau, cosine, constant",
+        choices=["linear", "polynomial", "reduce_lr_on_plateau", "cosine", "constant"],
+        default="linear",
+        required=False,
+        type=str,
+    )
+    parser.add_argument(
         "--batch",
         help="Batch size",
         default=1,
+        required=False,
+        type=int,
+    )
+    parser.add_argument(
+        "--workers",
+        help="Number of workers",
+        default=4,
         required=False,
         type=int,
     )
@@ -89,6 +112,8 @@ if __name__ == "__main__":
     lr = args.lr                        # e.g., 1e-4 for luke-based, 1e-5 for bert-based
     weight_decay = args.weight_decay    # e.g., 0.01
     warmup_ratio = args.warmup_ratio    # e.g., 0.06
+    workers = args.workers              # e.g., 4
+    scheduler_type = args.scheduler     # e.g., linear
 
     ## Define the labels
     original_label_list = [
@@ -131,6 +156,9 @@ if __name__ == "__main__":
             labels_ids, prediction_ids, tags=unique_labels, loader="list"
         )
         results, results_per_tag = evaluator.evaluate()
+        print("")
+        for k,v in results_per_tag.items():
+            print(f"{k}: {v['ent_type']['f1']}")
 
         return {
             "f1-type-match": 2
@@ -151,6 +179,7 @@ if __name__ == "__main__":
             / (results["exact"]["precision"] + results["exact"]["recall"] + 1e-9),
         }
 
+<<<<<<< HEAD
     ## Define the models
     model_paths = [
         "dslim/bert-large-NER",                     # ft on NER
@@ -163,13 +192,27 @@ if __name__ == "__main__":
         "studio-ousia/luke-base",                   # LUKE base
     ]
 
+=======
+    if args.model_path:
+        model_paths=[args.model_path]
+    else:
+        model_paths = [
+            "nlpaueb/bert-base-uncased-echr", # to delete
+            "studio-ousia/luke-large",
+            'law-ai/InLegalBERT',
+            'microsoft/deberta-v3-base',
+            'saibo/legal-roberta-base',
+            "geckos/deberta-base-fine-tuned-ner", # not bad, to finetune better
+            "studio-ousia/luke-base",
+        ]
+>>>>>>> 8102b9ee16d39ba47837920be66d27e0825bdb4b
     for model_path in model_paths:
 
         print("MODEL: ", model_path)
 
         ## Define the train and test datasets
         use_roberta = False
-        if "luke" in model_path or "roberta" in model_path:
+        if "luke" in model_path or "roberta" in model_path or "berta" in model_path or "xlm" in model_path or "span" in model_path or "distilbert" in model_path:
             use_roberta = True
 
         train_ds = LegalNERTokenDataset(
@@ -189,11 +232,33 @@ if __name__ == "__main__":
         )
 
         ## Define the model
-        model = AutoModelForTokenClassification.from_pretrained(
-            model_path, 
-            num_labels=num_labels, 
-            ignore_mismatched_sizes=True
-        )
+        if "span" in model_path:
+            # Download from the 🤗 Hub
+
+            encoder_id = "roberta-base"
+            model = SpanMarkerModel.from_pretrained(
+                # Required arguments
+                encoder_id,
+                labels=['O']+original_label_list,
+                # Optional arguments
+                model_max_length=256,
+                entity_max_length=8,
+                ignore_mismatched_sizes=True
+                # To improve the generated model card
+            )
+            """model = SpanMarkerModel.from_pretrained(
+                model_path,
+                num_labels=num_labels,
+                labels=original_label_list,
+                ignore_mismatched_sizes=True
+            )"""
+        else:
+            # Run inference
+            model = AutoModelForTokenClassification.from_pretrained(
+                model_path, 
+                num_labels=num_labels, 
+                ignore_mismatched_sizes=True
+            )
 
         ## Map the labels
         idx_to_labels = {v[1]: v[0] for v in train_ds.labels_to_idx.items()}
@@ -209,44 +274,54 @@ if __name__ == "__main__":
             output_dir=new_output_folder,
             num_train_epochs=num_epochs,
             learning_rate=lr,
+            lr_scheduler_type=scheduler_type,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
             gradient_accumulation_steps=1,
-            gradient_checkpointing=True,
+            gradient_checkpointing=True if "span" not in model_path else False,
             warmup_ratio=warmup_ratio,
             weight_decay=weight_decay,
             evaluation_strategy="epoch",
             save_strategy="epoch",
-            load_best_model_at_end=False,
+            load_best_model_at_end=True,
             save_total_limit=2,
             fp16=False,
             fp16_full_eval=False,
             metric_for_best_model="f1-strict",
-            dataloader_num_workers=4,
+            dataloader_num_workers=workers,
             dataloader_pin_memory=True,
             report_to="wandb",
-            logging_steps=10,  # how often to log to W&B
-
+            logging_steps=50 if "bert-" not in model_path else 3000,  # how often to log to W&B
         )
 
         ## Collator
         data_collator = DefaultDataCollator()
 
         ## Trainer
-        trainer = Trainer(
+        if "span" not in model_path:
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_ds,
+                eval_dataset=val_ds,
+                data_collator=data_collator,
+                compute_metrics=compute_metrics,
+                callbacks=[EarlyStoppingCallback(2)]
+            )
+        else:
+            trainer = SpanTrainer(
             model=model,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=val_ds,
-            compute_metrics=compute_metrics,
-            data_collator=data_collator,
-        )
+            )
 
         ## Train the model and save it
         trainer.train()
         trainer.save_model(output_folder)
         trainer.evaluate()
 
+    
 
 
 """python 3.10

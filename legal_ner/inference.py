@@ -88,8 +88,8 @@ class NERExtractor:
 ############################################################                    
 
 ## Define the models to use with the corresponding checkpoint and tokenizer
-base_dir = "results"
-all_model_path = [
+base_dir = "results/all"
+"""all_model_path = [
     (f'{base_dir}/bert-large-NER/checkpoint-65970',
     'dslim/bert-large-NER'),                    # ft on NER
     (f'{base_dir}/roberta-large-ner-english/checkpoint-65970',
@@ -106,13 +106,16 @@ all_model_path = [
     'studio-ousia/luke-base'),                  # LUKE base
     (f'{base_dir}/studio-ousia/luke-large/checkpoint-65970',
     'studio-ousia/luke-large'),                 # LUKE large
+]"""
+all_model_path = [        # ft on Legal Domain
+    (f'{base_dir}/saibo/legal-roberta-base/checkpoint-2752', 'saibo/legal-roberta-base'),                # ft on Legal Domain                 # LUKE large
 ]
 
 ## Loop over the models
 for model_path in sorted(all_model_path):
 
     ## Load the test data
-    test_data = 'data/NER_TEST/NER_TEST_DATA_FS.json'
+    test_data = 'data/NER_DEV/NER_DEV_ALL.json'
     data = json.load(open(test_data)) 
 
     ## Load the tokenizer
@@ -141,6 +144,7 @@ for model_path in sorted(all_model_path):
     ]
 
     ## Initialize the NER extractor
+    print(model_path)
     ner_extr = NERExtractor(
         ner_model_path = model_path[0], 
         tokenizer = tokenizer, 
@@ -175,4 +179,4 @@ for model_path in sorted(all_model_path):
         data[i]['annotations'][0]['result'] = results_output
     
     ## Save the results
-    json.dump(data, open(f'{base_dir}/all/{model_path[0].split("/")[-2]}_predictions.json', 'w'))
+    json.dump(data, open(f'{base_dir}/{model_path[0].split("/")[-2]}_predictions.json', 'w'))
