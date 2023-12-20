@@ -27,7 +27,7 @@ def objective(trial):
     training_args.weight_decay = weight_decay
     training_args.warmup_ratio = warmup_ratio
     #print(training_args)
-    batch_size = training_args.per_device_train_batch_size
+    #batch_size = training_args.per_device_train_batch_size
     model = CustomModelWithCRF(model_path, num_labels=num_labels)
     # Create Trainer
     # Create WandB run for each trial
@@ -35,7 +35,6 @@ def objective(trial):
         # Create Trainer
         trainer = Trainer(
             model=model,
-            batch_size = batch_size,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=val_ds,
@@ -276,8 +275,9 @@ if __name__ == "__main__":
             num_train_epochs=1,
             learning_rate=lr,
             lr_scheduler_type=scheduler_type,
-            per_device_train_batch_size=batch_size,
-            per_device_eval_batch_size=batch_size,
+            #per_device_train_batch_size=batch_size,
+            #per_device_eval_batch_size=batch_size,
+            batch_size = batch_size,
             gradient_accumulation_steps=1,
             gradient_checkpointing=(not use_crf),
             warmup_ratio=warmup_ratio,
