@@ -26,8 +26,8 @@ def objective(trial):
     training_args.optim = optim
     training_args.weight_decay = weight_decay
     training_args.warmup_ratio = warmup_ratio
-    print(training_args)
-
+    #print(training_args)
+    batch_size = training_args.per_device_train_batch_size
     model = CustomModelWithCRF(model_path, num_labels=num_labels)
     # Create Trainer
     # Create WandB run for each trial
@@ -35,6 +35,7 @@ def objective(trial):
         # Create Trainer
         trainer = Trainer(
             model=model,
+            batch_size = batch_size,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=val_ds,
