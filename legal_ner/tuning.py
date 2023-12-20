@@ -26,6 +26,7 @@ def objective(trial):
     training_args.optim = optim
     training_args.weight_decay = weight_decay
     training_args.warmup_ratio = warmup_ratio
+    print(training_args)
 
     model = CustomModelWithCRF(model_path, num_labels=num_labels)
     # Create Trainer
