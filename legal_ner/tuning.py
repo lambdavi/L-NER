@@ -11,7 +11,7 @@ import torch
 from utils.dataset import LegalNERTokenDataset
 import optuna
 import wandb
-from main_crf import CustomModelWithCRF
+from main_lstm import CustomModelWithBiLSTM
 import spacy
 nlp = spacy.load("en_core_web_sm")
 
@@ -27,7 +27,7 @@ def objective(trial):
     training_args.weight_decay = weight_decay
     training_args.warmup_ratio = warmup_ratio
 
-    model = CustomModelWithCRF(model_path, num_labels=num_labels)
+    model = CustomModelWithBiLSTM(model_path, num_labels=num_labels)
     # Create Trainer
     # Create WandB run for each trial
     with wandb.init(project="finetuning", config=trial.params):
